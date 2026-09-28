@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Controle Estoque",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "ce_db",
+      "Username": "ce_user",
+      "SSLMode": "prefer"
+    }
+  }
+}

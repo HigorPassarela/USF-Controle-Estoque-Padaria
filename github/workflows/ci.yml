@@ -1,0 +1,29 @@
+name: CI
+
+run-name: "CI • ${{ github.ref_name }} • tests: ${{ inputs.run_tests }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run tests"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg RUN_TESTS=${{ inputs.run_tests }} \
+            -t controle-estoque:${{ github.sha }} .
