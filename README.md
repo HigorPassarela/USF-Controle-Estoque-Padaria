@@ -129,19 +129,21 @@ USF-Controle-Estoque-Padaria/
     ├── main/
     │   ├── java/br/com/controleestoque/
     │   │   ├── ControleEstoqueApplication.java   # classe main
+    │   │   ├── api/                              # controllers REST
+    │   │   │   ├── request/                      # DTOs de entrada (records + Bean Validation)
+    │   │   │   ├── response/                     # DTOs de saída (records)
+    │   │   │   └── handler/                      # handler global de erros (GlobalExceptionHandler)
     │   │   ├── config/                           # configurações (OpenApiConfig)
-    │   │   ├── controller/                       # controllers REST
-    │   │   ├── dto/                              # DTOs de request/response
-    │   │   ├── entity/                           # entidades JPA
-    │   │   ├── exception/                        # exceções e handler global
+    │   │   ├── exception/                        # exceções de domínio (404, 409)
+    │   │   ├── model/                            # entidades JPA
     │   │   ├── repository/                       # repositories Spring Data JPA
     │   │   └── service/                          # regras de negócio
     │   └── resources/
     │       ├── application.yaml                  # configuração única da aplicação
     │       └── db/migration/
-    │           └── V1__baseline.sql              # migrations Flyway
-    └── test/
-        └── java/br/com/controleestoque/          # testes automatizados
+    │           ├── V1__baseline.sql              # migrations Flyway
+    │           ├── V2__baseline.sql
+    │           └── V3__ativo_e_estados.sql       # soft delete e carga dos estados
 ```
 
 ---
@@ -177,12 +179,13 @@ Cliente HTTP
 
 | Pacote        | Responsabilidade                                                                 |
 |---------------|----------------------------------------------------------------------------------|
-| `controller`  | Endpoints REST, códigos HTTP coerentes e integração com os Services              |
+| `api`         | Controllers REST, códigos HTTP coerentes e integração com os Services            |
+| `api/request` e `api/response` | DTOs. **Entidades nunca são expostas diretamente na API**         |
+| `api/handler` | `GlobalExceptionHandler`: converte exceções na resposta JSON padronizada          |
 | `service`     | Regras de negócio, validações de existência/integridade e transações             |
 | `repository`  | Interfaces Spring Data JPA e consultas                                           |
-| `entity`      | Entidades JPA alinhadas com as migrations Flyway                                 |
-| `dto`         | Objetos de request/response. **Entidades nunca são expostas diretamente na API** |
-| `exception`   | Exceções de domínio e handler global com resposta JSON padronizada               |
+| `model`       | Entidades JPA alinhadas com as migrations Flyway                                 |
+| `exception`   | Exceções de domínio (`RecursoNaoEncontradoException`, `RegraNegocioException`, `EstoqueInsuficienteException`) |
 | `config`      | Beans e configurações da aplicação (ex.: `OpenApiConfig`)                        |
 
 ### Decisões técnicas
@@ -194,6 +197,47 @@ Cliente HTTP
 - **API documentada com OpenAPI 3**, gerada automaticamente a partir dos controllers e DTOs.
 - **Health check via Actuator**, expondo apenas os endpoints `health` e `info`.
 - **Dockerfile multi-stage**: o Maven compila dentro do próprio build da imagem, então não é preciso ter nada instalado além do Docker para gerar a imagem.
+- **Entidades com `LAZY`** nos `@ManyToOne`; as listagens usam `@EntityGraph` para carregar as relações que a resposta precisa.
+- **Injeção por construtor** (`@RequiredArgsConstructor`) em controllers e services.
+
+### Padrão de CRUD
+
+Cada recurso tem a mesma estrutura, sem classe genérica (a duplicação é pequena e mais simples de manter). O modelo de referência é **Métodos de Pagamento** (`MetodoPagamentoController`, `MetodoPagamentoService`, `MetodoPagamentoRequest`, `MetodoPagamentoResponse`).
+
+| Operação  | Rota                | Sucesso                      | Erros                                          |
+|-----------|---------------------|------------------------------|------------------------------------------------|
+| Listar    | `GET /{recurso}`    | 200                          |                                                |
+| Buscar    | `GET /{recurso}/{id}` | 200                        | 404                                            |
+| Criar     | `POST /{recurso}`   | 201 + cabeçalho `Location`   | 400 (validação), 404 (FK inexistente), 409     |
+| Atualizar | `PUT /{recurso}/{id}` | 200 (substitui os campos)  | 400, 404, 409                                  |
+| Excluir   | `DELETE /{recurso}/{id}` | 204                     | 404, 409 (registro em uso)                     |
+
+Nos `POST` e `PUT`, os campos são enviados como **parâmetros de consulta** (ex.: `POST /api/produtos?nome=Pão&precoVenda=0.75&categoria=1 - Pães&...`), sem corpo JSON. No Swagger isso aparece como uma caixa por campo, com descrição e exemplo, e os obrigatórios marcados.
+
+**Listas suspensas no Swagger (pensado para usuário leigo):**
+- Os campos que apontam para outro cadastro (`tipoCliente`, `cidade`, `estado`, `categoria`, `tipoProduto`, `unidadeMedida`, `fornecedor`) e o `{id}` das rotas de buscar, atualizar e excluir são listas preenchidas com o que está cadastrado, no formato `3 - Pães`. A API lê o número do início; também aceita só o número (`3`).
+- As listas são montadas a cada carga da documentação: um registro novo aparece ao recarregar a página do Swagger.
+- O `tipo` de movimentação é uma lista fixa (`ENTRADA` ou `SAIDA`).
+- O Swagger abre com "Try it out" ativo, grupos recolhidos e campo de busca.
+
+Recursos disponíveis em `/api`:
+
+| Grupo | Recursos | Exclusão |
+|-------|----------|----------|
+| Auxiliares | `metodos-pagamento`, `tipos-produto`, `categorias-produto`, `unidades-medida`, `tipos-cliente`, `tipos-movimentacao`, `cidades` | Física; 409 se outro cadastro usa o registro |
+| Principais | `clientes`, `fornecedores`, `produtos` | Lógica (`ativo = false`); inativos somem de listas e buscas (404) |
+| Referência | `estados` (somente leitura, 27 UFs carregadas pela migration V3) | Não permitida (405) |
+
+Regras: CPF/CNPJ de cliente e CNPJ de fornecedor são únicos **entre registros ativos** (409); o saldo `quantidadeEstoque` do produto não é editável pela API de produto.
+
+**Formato de erro** (todos os recursos):
+
+```json
+{ "status": 404, "erro": "Não encontrado", "mensagem": "Produto não encontrado",
+  "caminho": "/api/produtos/7", "timestamp": "2026-10-09T01:01:20Z" }
+```
+
+Para 400 de validação o corpo inclui também `campos`: lista de `{campo, mensagem}`. Erros inesperados retornam 500 com mensagem genérica, sem stacktrace.
 
 ---
 
@@ -424,21 +468,30 @@ A documentação é gerada com o **springdoc-openapi** e fica disponível com a 
 
 No Swagger UI é possível visualizar todos os endpoints, os modelos de request/response, os códigos HTTP e **testar as chamadas direto pelo navegador**.
 
-> Enquanto não houver controllers, o Swagger UI abre normalmente, mas mostra a mensagem "No operations defined in spec". Os endpoints aparecem automaticamente conforme os controllers forem criados.
+Todas as rotas estão documentadas (resumo, descrição e respostas possíveis, como 200, 201, 204, 400, 404 e 409), organizadas em grupos: Estados, Cidades, Clientes, Fornecedores, Produtos, Categorias de Produto, Tipos de Produto, Unidades de Medida, Tipos de Cliente, Métodos de Pagamento e Tipos de Movimentação de Estoque. Veja o formato dos cadastros e as listas suspensas em [Padrão de CRUD](#padrão-de-crud).
 
 ### Configuração
 
-Os caminhos ficam no `application.yaml`:
+Os caminhos e o comportamento do Swagger ficam no `application.yaml`:
 
 ```yaml
 springdoc:
+  cache:
+    disabled: true            # recarrega as listas suspensas a cada carga da documentação
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+    try-it-out-enabled: true          # abre já pronto para testar
+    doc-expansion: none               # grupos recolhidos
+    default-models-expand-depth: -1   # esconde a seção de schemas
+    filter: true                      # campo de busca
+    display-request-duration: true
 ```
+
+As listas suspensas são montadas pela classe `ListasSuspensasSwaggerConfig` (pacote `config`), que consulta o banco; a leitura da opção escolhida (`3 - Pães` → `3`) está em `OpcaoSelecionada` (pacote `service`).
 
 O título, a descrição e a versão exibidos no topo do Swagger UI ficam na classe `OpenApiConfig`, no pacote `config`:
 
@@ -459,27 +512,28 @@ public class OpenApiConfig {
 
 ### Como os endpoints são documentados
 
-A documentação é gerada automaticamente a partir dos controllers e DTOs. Para enriquecer, use as anotações do `io.swagger.v3.oas.annotations`:
+Cada controller usa as anotações do `io.swagger.v3.oas.annotations`. Ao criar um recurso novo, siga o mesmo padrão dos existentes (por exemplo, `MetodoPagamentoController`):
 
 ```java
-@Tag(name = "Clientes", description = "CRUD de clientes")
+@Tag(name = "Clientes", description = "Cadastro de clientes da padaria...")
 @RestController
-@RequestMapping("/clientes")
+@RequestMapping("/api/clientes")
 public class ClienteController {
 
-    @Operation(summary = "Busca um cliente pelo id")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "Cliente não encontrado")
-    })
     @GetMapping("/{id}")
-    public ClienteResponse buscar(@PathVariable Long id) {
+    @Operation(summary = "Buscar cliente por id", description = "Retorna os dados de um cliente a partir do seu id.")
+    @ApiResponse(responseCode = "200", description = "Cliente encontrado")
+    @ApiResponse(responseCode = "404", description = "O cliente não existe ou está inativo",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
+    public ClienteResponse buscar(@Parameter(description = "Escolha na lista (cliente)") @PathVariable String id) {
         // ...
     }
 }
 ```
 
-Os DTOs com Bean Validation (`@NotBlank`, `@Size`, etc.) já têm essas restrições refletidas no schema automaticamente.
+Sem `@Tag`, o grupo aparece como `cliente-controller`; por isso todo controller deve declarar o seu. Nos requests de `POST`/`PUT`, use `@ParameterObject` (em vez de `@RequestBody`) e descreva cada campo com `@Schema(description = ...)` nos `record`s. As restrições do Bean Validation (`@NotBlank`, `@Size`, etc.) aparecem no Swagger automaticamente, e os campos obrigatórios vêm marcados.
+
+Para um campo novo que aponte para outro cadastro, registre-o em `ListasSuspensasSwaggerConfig` para que ele vire lista suspensa.
 
 > Os endpoints do Actuator não aparecem no Swagger por padrão. Para exibi-los, use `springdoc.show-actuator: true`.
 >
@@ -538,12 +592,12 @@ As migrations ficam em `src/main/resources/db/migration/` e rodam automaticament
 V<versão>__<descricao_em_snake_case>.sql
 ```
 
-Exemplos:
+Migrations atuais:
 
 ```
-V1__baseline.sql
-V2__criar_tabelas_de_localizacao.sql
-V3__criar_tabelas_de_cadastro.sql
+V1__baseline.sql           # tabelas de apoio (estado, tipos, categorias, unidades, métodos de pagamento...)
+V2__baseline.sql           # cidade, cliente, fornecedor e produto
+V3__ativo_e_estados.sql    # coluna "ativo" (exclusão lógica), documentos únicos entre ativos e carga dos 27 estados
 ```
 
 ### Regras
@@ -727,11 +781,11 @@ Acompanhado no board do Jira (projeto **CE**). Ordem sugerida:
 5. **Migrations iniciais** com todas as tabelas, PKs, FKs, constraints e índices
 6. **Entities JPA e Repositories**
 7. **DTOs, validações e mapeamento** da API
-8. **Services** e regras de negócio (cadastros, estoque e vendas)
-9. **Controllers REST** e tratamento global de exceções
-10. **CRUDs** de todos os cadastros, pedidos, lotes e movimentações
-11. **Documentação da API** com OpenAPI/Swagger *(dependência, configuração e `OpenApiConfig` entregues; as anotações nos controllers ficam para a implementação dos endpoints)*
-12. **Testes automatizados** (unitários e de integração)
+8. **Tratamento global de exceções** e **CRUDs dos cadastros** (auxiliares, clientes, fornecedores e produtos) *(entregue)*
+9. **Estoque**: entradas, lotes e movimentações, com saldo por lote e baixa FEFO
+10. **Vendas**: pedidos, itens e pagamentos
+11. **Bairros** e demais cadastros pendentes
+12. **Documentação da API** com OpenAPI/Swagger *(entregue para as rotas existentes: todas documentadas, com listas suspensas; as novas rotas devem seguir o mesmo padrão)*
 
 ---
 
