@@ -1,12 +1,15 @@
 package br.com.controleestoque.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.math.BigDecimal;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
@@ -25,22 +28,25 @@ public class Produto {
     @Column(name = "preco_venda", nullable = false, precision = 10, scale = 2)
     private BigDecimal precoVenda;
 
-    @Column(name = "quantidade_estoque", nullable = false)
-    private Integer quantidadeEstoque = 0; // Valor default inicial
+    @Column(name = "quantidade_estoque", nullable = false, precision = 10, scale = 3)
+    private BigDecimal quantidadeEstoque = BigDecimal.ZERO; // Soma dos saldos dos lotes
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_categoria_produto", nullable = false)
     private CategoriaProduto categoriaProduto;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_tipo_produto", nullable = false)
     private TipoProduto tipoProduto;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_unidade_medida", nullable = false)
     private UnidadeMedida unidadeMedida;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_fornecedor")
     private Fornecedor fornecedor;
+
+    @Column(nullable = false)
+    private Boolean ativo = true;
 }

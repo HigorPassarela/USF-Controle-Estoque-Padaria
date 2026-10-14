@@ -2,7 +2,7 @@
 
 Sistema de **controle de estoque e vendas** para padaria, desenvolvido em **Java 21** com **Spring Boot**, banco **PostgreSQL** versionado com **Flyway**, documentação de API com **Swagger (OpenAPI)**, health check com **Actuator**, ambiente local com **Docker Compose** (incluindo **pgAdmin**) e pipeline de **CI** com **GitHub Actions**.
 
-> **Status:** estrutura base do projeto (Sprint 0). Ainda não há entidades, migrations de tabelas nem endpoints. Esses itens estão planejados no board do Jira (projeto **CE**).
+> **Status:** cadastros completos (inclusive Bairros e fornecedores por produto), estoque por lote com baixa FEFO e interface web de administração entregues. Próxima fase: Vendas (pedidos, itens e pagamentos), planejada no board do Jira (projeto **CE**).
 
 ---
 
@@ -13,17 +13,22 @@ git clone https://github.com/HigorPassarela/USF-Controle-Estoque-Padaria.git
 cd USF-Controle-Estoque-Padaria
 
 cp .env.example .env
-docker compose -f docker/docker-compose.yml --env-file .env up -d
-
-mvn spring-boot:run
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build
 ```
 
-| Recurso      | URL                                    |
-|--------------|----------------------------------------|
-| API          | http://localhost:8080                  |
+Esse comando sobe **banco, pgAdmin e a aplicação** (API e interface web). Não precisa ter Java nem Maven instalados. Na primeira vez demora alguns minutos (baixa as imagens do Docker e compila a aplicação).
+
+| Recurso       | URL                                    |
+|---------------|----------------------------------------|
+| **Interface** | **http://localhost:8080**              |
+| API           | http://localhost:8080/api              |
 | Swagger UI   | http://localhost:8080/swagger-ui.html  |
 | Health check | http://localhost:8080/actuator/health  |
 | pgAdmin      | http://localhost:5050                  |
+
+Documentação complementar em [`docs/`](docs):
+- [Como rodar o projeto, passo a passo](docs/COMO-RODAR.md), do zero, inclusive sem Java instalado
+- [Mapa de todas as rotas da API](docs/ROTAS.md), em tabelas, com parâmetros e respostas
 
 ---
 
@@ -38,15 +43,16 @@ mvn spring-boot:run
 7. [Subindo os containers](#7-subindo-os-containers)
 8. [Acessando o pgAdmin](#8-acessando-o-pgadmin)
 9. [Rodando a aplicação](#9-rodando-a-aplicação)
-10. [Imagem Docker da aplicação](#10-imagem-docker-da-aplicação)
-11. [Documentação da API (Swagger)](#11-documentação-da-api-swagger)
-12. [Health check (Actuator)](#12-health-check-actuator)
-13. [Banco de dados e migrations (Flyway)](#13-banco-de-dados-e-migrations-flyway)
-14. [CI (GitHub Actions)](#14-ci-github-actions)
-15. [Comandos úteis do Docker](#15-comandos-úteis-do-docker)
-16. [Problemas comuns](#16-problemas-comuns)
-17. [Roadmap](#17-roadmap)
-18. [Convenções](#18-convenções)
+10. [Interface web](#10-interface-web)
+11. [Imagem Docker da aplicação](#11-imagem-docker-da-aplicação)
+12. [Documentação da API (Swagger)](#12-documentação-da-api-swagger)
+13. [Health check (Actuator)](#13-health-check-actuator)
+14. [Banco de dados e migrations (Flyway)](#14-banco-de-dados-e-migrations-flyway)
+15. [CI (GitHub Actions)](#15-ci-github-actions)
+16. [Comandos úteis do Docker](#16-comandos-úteis-do-docker)
+17. [Problemas comuns](#17-problemas-comuns)
+18. [Roadmap](#18-roadmap)
+19. [Convenções](#19-convenções)
 
 ---
 
@@ -116,32 +122,43 @@ USF-Controle-Estoque-Padaria/
 │   └── workflows/
 │       └── ci.yml                  # pipeline de CI (gatilho manual)
 ├── docker/
-│   ├── docker-compose.yml          # PostgreSQL + pgAdmin
+│   ├── docker-compose.yml          # PostgreSQL + pgAdmin + aplicação
 │   └── pgadmin/
 │       └── servers.json            # servidor pré-cadastrado no pgAdmin
 ├── .dockerignore
 ├── .env.example                    # modelo das variáveis de ambiente
 ├── .gitignore
 ├── Dockerfile                      # imagem da aplicação (multi-stage)
+├── docs/
+│   ├── COMO-RODAR.md               # passo a passo para rodar do zero
+│   └── ROTAS.md                    # mapa de todas as rotas da API
 ├── pom.xml
 ├── README.md
 └── src/
     ├── main/
     │   ├── java/br/com/controleestoque/
     │   │   ├── ControleEstoqueApplication.java   # classe main
-    │   │   ├── config/                           # configurações (OpenApiConfig)
-    │   │   ├── controller/                       # controllers REST
-    │   │   ├── dto/                              # DTOs de request/response
-    │   │   ├── entity/                           # entidades JPA
-    │   │   ├── exception/                        # exceções e handler global
+    │   │   ├── api/                              # controllers REST
+    │   │   │   ├── request/                      # DTOs de entrada (records + Bean Validation)
+    │   │   │   ├── response/                     # DTOs de saída (records)
+    │   │   │   └── handler/                      # handler global de erros (GlobalExceptionHandler)
+    │   │   ├── config/                           # configurações (OpenAPI, listas do Swagger, relógio)
+    │   │   ├── exception/                        # exceções de domínio (404, 409)
+    │   │   ├── model/                            # entidades JPA
     │   │   ├── repository/                       # repositories Spring Data JPA
     │   │   └── service/                          # regras de negócio
     │   └── resources/
     │       ├── application.yaml                  # configuração única da aplicação
+    │       ├── static/                           # interface web (servida em /)
+    │       │   ├── index.html
+    │       │   └── assets/
+    │       │       ├── css/app.css               # estilos e temas claro/escuro
+    │       │       └── js/                       # app, api, ui, formatos, gráfico e views/
     │       └── db/migration/
-    │           └── V1__baseline.sql              # migrations Flyway
-    └── test/
-        └── java/br/com/controleestoque/          # testes automatizados
+    │           ├── V1__baseline.sql              # migrations Flyway
+    │           ├── V2__baseline.sql
+    │           ├── V3__ativo_e_estados.sql       # soft delete e carga dos estados
+    │           └── V4__bairro_produto_fornecedor_estoque.sql  # bairros, custo por fornecedor, lotes e movimentações
 ```
 
 ---
@@ -177,12 +194,13 @@ Cliente HTTP
 
 | Pacote        | Responsabilidade                                                                 |
 |---------------|----------------------------------------------------------------------------------|
-| `controller`  | Endpoints REST, códigos HTTP coerentes e integração com os Services              |
+| `api`         | Controllers REST, códigos HTTP coerentes e integração com os Services            |
+| `api/request` e `api/response` | DTOs. **Entidades nunca são expostas diretamente na API**         |
+| `api/handler` | `GlobalExceptionHandler`: converte exceções na resposta JSON padronizada          |
 | `service`     | Regras de negócio, validações de existência/integridade e transações             |
 | `repository`  | Interfaces Spring Data JPA e consultas                                           |
-| `entity`      | Entidades JPA alinhadas com as migrations Flyway                                 |
-| `dto`         | Objetos de request/response. **Entidades nunca são expostas diretamente na API** |
-| `exception`   | Exceções de domínio e handler global com resposta JSON padronizada               |
+| `model`       | Entidades JPA alinhadas com as migrations Flyway                                 |
+| `exception`   | Exceções de domínio (`RecursoNaoEncontradoException`, `RegraNegocioException`, `EstoqueInsuficienteException`) |
 | `config`      | Beans e configurações da aplicação (ex.: `OpenApiConfig`)                        |
 
 ### Decisões técnicas
@@ -194,6 +212,69 @@ Cliente HTTP
 - **API documentada com OpenAPI 3**, gerada automaticamente a partir dos controllers e DTOs.
 - **Health check via Actuator**, expondo apenas os endpoints `health` e `info`.
 - **Dockerfile multi-stage**: o Maven compila dentro do próprio build da imagem, então não é preciso ter nada instalado além do Docker para gerar a imagem.
+- **Entidades com `LAZY`** nos `@ManyToOne`; as listagens usam `@EntityGraph` para carregar as relações que a resposta precisa.
+- **Injeção por construtor** (`@RequiredArgsConstructor`) em controllers e services.
+
+### Padrão de CRUD
+
+Cada recurso tem a mesma estrutura, sem classe genérica (a duplicação é pequena e mais simples de manter). O modelo de referência é **Métodos de Pagamento** (`MetodoPagamentoController`, `MetodoPagamentoService`, `MetodoPagamentoRequest`, `MetodoPagamentoResponse`).
+
+| Operação  | Rota                | Sucesso                      | Erros                                          |
+|-----------|---------------------|------------------------------|------------------------------------------------|
+| Listar    | `GET /{recurso}`    | 200                          |                                                |
+| Buscar    | `GET /{recurso}/{id}` | 200                        | 404                                            |
+| Criar     | `POST /{recurso}`   | 201 + cabeçalho `Location`   | 400 (validação), 404 (FK inexistente), 409     |
+| Atualizar | `PUT /{recurso}/{id}` | 200 (substitui os campos)  | 400, 404, 409                                  |
+| Excluir   | `DELETE /{recurso}/{id}` | 204                     | 404, 409 (registro em uso)                     |
+
+Nos `POST` e `PUT`, os campos são enviados como **parâmetros de consulta** (ex.: `POST /api/produtos?nome=Pão&precoVenda=0.75&categoria=1 - Pães&...`), sem corpo JSON. No Swagger isso aparece como uma caixa por campo, com descrição e exemplo, e os obrigatórios marcados.
+
+**Listas suspensas no Swagger (pensado para usuário leigo):**
+- Os campos que apontam para outro cadastro (`tipoCliente`, `cidade`, `bairro`, `estado`, `categoria`, `tipoProduto`, `unidadeMedida`, `fornecedor`, `produto`, `lote`, `tipoMovimentacao`) e os ids das rotas (`{id}`, `{idFornecedor}`, `{idProduto}`) são listas preenchidas com o que está cadastrado, no formato `3 - Pães`. A API lê o número do início; também aceita só o número (`3`).
+- As listas são montadas a cada carga da documentação: um registro novo aparece ao recarregar a página do Swagger.
+- O `tipo` de movimentação é uma lista fixa (`ENTRADA` ou `SAIDA`). Nas rotas de estoque, o campo `tipoMovimentacao` só lista tipos de `ENTRADA` na entrada e de `SAIDA` nas saídas.
+- O Swagger abre com "Try it out" ativo, grupos recolhidos e campo de busca.
+
+Recursos disponíveis em `/api`:
+
+| Grupo | Recursos | Exclusão |
+|-------|----------|----------|
+| Auxiliares | `metodos-pagamento`, `tipos-produto`, `categorias-produto`, `unidades-medida`, `tipos-cliente`, `tipos-movimentacao`, `cidades`, `bairros` | Física; 409 se outro cadastro usa o registro |
+| Principais | `clientes`, `fornecedores`, `produtos` | Lógica (`ativo = false`); inativos somem de listas e buscas (404) |
+| Referência | `estados` (somente leitura, 27 UFs carregadas pela migration V3) | Não permitida (405) |
+| Fornecedores do produto | `produtos/{id}/fornecedores` (custo unitário por fornecedor; `PUT`/`DELETE` em `/{idFornecedor}`) | Física (desvincula) |
+
+Regras: CPF/CNPJ de cliente e CNPJ de fornecedor são únicos **entre registros ativos** (409); o bairro de cliente e fornecedor é opcional, mas exige a cidade e precisa pertencer a ela (400); um tipo de movimentação já usado não troca de natureza nem pode ser excluído (409); o saldo `quantidadeEstoque` do produto não é editável pela API de produto. As respostas de produto, cliente e fornecedor trazem id e nome de cada referência, para que o registro possa ser reenviado num `PUT` sem perder dados.
+
+### Estoque por lote
+
+Rotas em `/api/estoque`:
+
+| Operação | Rota | Sucesso | Erros |
+|----------|------|---------|-------|
+| Entrada (cria um lote) | `POST /entradas` | 201 + `Location` do lote | 400, 404 |
+| Saída com baixa FEFO | `POST /saidas` | 201 (uma movimentação por lote afetado) | 400, 404, 409 (estoque insuficiente) |
+| Saída de um lote (perda, descarte) | `POST /lotes/{id}/saidas` | 201 | 400, 404, 409 (maior que o saldo do lote) |
+| Lotes | `GET /lotes` (filtros `produto`, `somenteComSaldo`, `somenteVencidos`) e `GET /lotes/{id}` | 200 | 404 |
+| Movimentações | `GET /movimentacoes` (filtros `produto`, `lote`, `de`, `ate`) e `GET /movimentacoes/{id}` | 200 | 400, 404; `PUT`/`DELETE` dão 405 |
+| Saldos | `GET /saldos` e `GET /saldos/{idProduto}` (total, disponível, vencido, próximo vencimento) | 200 | 404 |
+
+- **Quantidades** são decimais com até 3 casas (ex.: `2.5` kg); custos têm até 2 casas.
+- **Entrada:** `produto`, `quantidade` e `tipoMovimentacao` (de `ENTRADA`) são obrigatórios; `dataValidade` (AAAA-MM-DD, não anterior a hoje), `fornecedor`, `custoUnitario`, `numeroLote` e `observacao` são opcionais. Sem custo informado, usa o custo do vínculo do fornecedor com o produto, se houver.
+- **FEFO** (*First Expired, First Out*): a saída consome primeiro o lote que vence antes; lotes sem validade saem por último e, em empate, sai o mais antigo.
+- **Lote vencido** (validade antes de hoje, no fuso `America/Sao_Paulo`) **não entra na baixa FEFO**. Para tirá-lo do estoque, use a saída do lote específico com um tipo como "Perda / vencimento".
+- Se o saldo disponível não basta, a saída é recusada com 409 e nada muda. Entradas e saídas do mesmo produto são serializadas por bloqueio no banco, então saídas simultâneas não deixam saldo negativo.
+- O saldo do produto (`quantidadeEstoque`) é sempre a soma dos saldos dos seus lotes. Movimentações não podem ser editadas nem excluídas.
+- A migration V4 cadastra os tipos de movimentação básicos: "Compra de fornecedor" e "Ajuste de inventário (entrada)" (`ENTRADA`); "Consumo na produção", "Perda / vencimento" e "Ajuste de inventário (saída)" (`SAIDA`).
+
+**Formato de erro** (todos os recursos):
+
+```json
+{ "status": 404, "erro": "Não encontrado", "mensagem": "Produto não encontrado",
+  "caminho": "/api/produtos/7", "timestamp": "2026-10-09T01:01:20Z" }
+```
+
+Para 400 de validação (e para regras ligadas a um campo, como validade no passado) o corpo inclui também `campos`: lista de `{campo, mensagem}`. Erros inesperados retornam 500 com mensagem genérica, sem stacktrace.
 
 ---
 
@@ -217,6 +298,7 @@ cp .env.example .env
 | `PGADMIN_EMAIL`    | `admin@admin.com` | Login do pgAdmin                          |
 | `PGADMIN_PASSWORD` | `admin`           | Senha do pgAdmin                          |
 | `PGADMIN_PORT`     | `5050`            | Porta local do pgAdmin                    |
+| `APP_PORT`         | `8080`            | Porta local da aplicação (container `ce-app`) |
 
 > O arquivo `.env` **não vai para o Git** (está no `.gitignore`). Nunca faça commit de credenciais reais.
 
@@ -234,7 +316,9 @@ spring:
 
 Ou seja: **sem alterar nada, tudo funciona com os valores padrão**.
 
-O Spring Boot **não lê o arquivo `.env` sozinho**. Se você mudar as credenciais no `.env`, precisa também informar esses valores para a aplicação, exportando as variáveis no terminal ou configurando-as na sua IDE (Run Configuration > Environment variables).
+Quando a aplicação roda pelo **compose** (serviço `app`), o compose já repassa `DB_NAME`, `DB_USER` e `DB_PASSWORD` do `.env` para ela e fixa `DB_HOST=postgres` e `DB_PORT=5432`, que são o endereço do banco dentro da rede do Docker.
+
+Quando roda **fora do Docker** (IDE ou `mvn spring-boot:run`), o Spring Boot **não lê o arquivo `.env` sozinho**. Se você mudar as credenciais no `.env`, precisa também informar esses valores para a aplicação, exportando as variáveis no terminal ou configurando-as na sua IDE (Run Configuration > Environment variables).
 
 Exemplo no terminal (Linux/macOS):
 
@@ -251,11 +335,21 @@ Se você alterar `DB_NAME` ou `DB_USER`, atualize também o `MaintenanceDB` e o 
 
 O `docker-compose.yml` fica dentro da pasta `docker/`, então rode os comandos **a partir da raiz do projeto**.
 
-### Subir tudo (PostgreSQL + pgAdmin)
+### Subir tudo (PostgreSQL + pgAdmin + aplicação)
 
 ```bash
-docker compose -f docker/docker-compose.yml --env-file .env up -d
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build
 ```
+
+O `--build` gera a imagem da aplicação a partir do código atual (reaproveita o cache se nada mudou). A aplicação só sobe depois que o PostgreSQL estiver saudável. Acompanhe com `docker compose -f docker/docker-compose.yml logs -f app`.
+
+### Subir só o banco e o pgAdmin (para rodar a aplicação pela IDE)
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file .env up -d postgres pgadmin
+```
+
+Se o container da aplicação estiver no ar, pare-o para liberar a porta 8080: `docker compose -f docker/docker-compose.yml stop app`.
 
 Sem `.env`, remova o `--env-file .env` e os valores padrão do compose serão usados.
 
@@ -265,7 +359,7 @@ Sem `.env`, remova o `--env-file .env` e os valores padrão do compose serão us
 docker compose -f docker/docker-compose.yml ps
 ```
 
-O `ce-postgres` deve aparecer como `healthy`.
+O `ce-postgres` deve aparecer como `healthy`; o `ce-app` também fica `healthy` quando termina de subir.
 
 ### Parar os containers (mantendo os dados)
 
@@ -287,13 +381,14 @@ docker compose -f docker/docker-compose.yml down -v
 |------------|---------------|-----------------------|-------------|
 | `postgres` | `ce-postgres` | `postgres:16-alpine`  | `5432`      |
 | `pgadmin`  | `ce-pgadmin`  | `dpage/pgadmin4:9`    | `5050`      |
+| `app`      | `ce-app`      | `controle-estoque` (gerada pelo `Dockerfile`) | `8080` |
 
 | Volume          | Conteúdo                              |
 |-----------------|---------------------------------------|
 | `postgres_data` | Dados do PostgreSQL (persistente)     |
 | `pgadmin_data`  | Configurações e sessão do pgAdmin     |
 
-O pgAdmin só inicia depois que o PostgreSQL estiver saudável (`healthcheck` com `pg_isready`).
+O pgAdmin e a aplicação só iniciam depois que o PostgreSQL estiver saudável (`healthcheck` com `pg_isready`).
 
 ---
 
@@ -340,7 +435,7 @@ Senha:    ce_password
 
 ## 9. Rodando a aplicação
 
-Com os containers no ar, na raiz do projeto:
+O jeito mais simples é pelo compose, que já sobe a aplicação junto com o banco (seção 7). Para rodar **fora do Docker** (desenvolvimento), suba só o banco e o pgAdmin e, na raiz do projeto:
 
 ```bash
 mvn spring-boot:run
@@ -367,7 +462,8 @@ java -jar target/controle-estoque-0.0.1-SNAPSHOT.jar
 
 | Recurso        | URL                                      |
 |----------------|------------------------------------------|
-| API            | http://localhost:8080                    |
+| Interface web  | http://localhost:8080                    |
+| API            | http://localhost:8080/api                |
 | Swagger UI     | http://localhost:8080/swagger-ui.html    |
 | OpenAPI (JSON) | http://localhost:8080/v3/api-docs        |
 | Health check   | http://localhost:8080/actuator/health    |
@@ -375,7 +471,44 @@ java -jar target/controle-estoque-0.0.1-SNAPSHOT.jar
 
 ---
 
-## 10. Imagem Docker da aplicação
+## 10. Interface web
+
+Interface de administração servida pela própria aplicação em **http://localhost:8080**. Sobe junto com o `docker compose`, sem container próprio. É feita em HTML, CSS e JavaScript puros, sem etapa de build e sem biblioteca externa ou CDN, então funciona sem internet.
+
+| Seção | O que dá para fazer |
+|-------|---------------------|
+| **Painel** | Indicadores (produtos ativos, sem estoque, com saldo vencido, lotes vencendo em 7 dias, valor estimado pelo preço de venda), gráfico de saldo disponível x vencido por produto, próximos vencimentos e últimas movimentações |
+| **Estoque > Saldos** | Saldo de cada produto com situação (OK, Baixo, Vencido, Sem estoque), filtro por situação e limite de "estoque baixo" ajustável |
+| **Estoque > Lotes** | Lotes com filtros (produto, com saldo, vencidos, vencendo em 7 dias) e descarte de lote, inclusive vencido |
+| **Estoque > Movimentações** | Histórico com filtros por produto, lote e período |
+| **Entrada e saída** | Entrada com custo sugerido pelo vínculo do fornecedor; saída com **prévia FEFO**, que mostra de quais lotes vai sair cada quantidade antes de confirmar |
+| **Cadastros** | Listagem com busca, criação, edição e exclusão de todos os cadastros; fornecedores e custos dentro da edição do produto; bairros filtrados pela cidade; Estados só para consulta |
+| **Explorador da API** | Todas as rotas, lidas do `/v3/api-docs`, com formulário de parâmetros, envio e resposta formatada (status, tempo e JSON) |
+
+Detalhes de uso:
+- **Responsiva:** funciona de 360 px (celular) a monitores largos. No celular o menu vira gaveta, as tabelas viram cartões e os formulários ocupam a tela.
+- **Tema claro e escuro:** segue o sistema operacional. O botão no rodapé do menu alterna o tema, e a escolha fica salva no navegador.
+- **Endereço por tela:** cada tela tem seu endereço (`#/estoque/lotes`, `#/cadastros/produtos`...), então recarregar ou compartilhar o link abre a mesma tela.
+- **Erros da API** aparecem junto ao campo do formulário que causou o problema. Se a aplicação parar de responder, a tela avisa e oferece tentar de novo.
+- **Teclado:** todas as ações funcionam pelo teclado, e os formulários fecham com Esc.
+
+Organização do código em `src/main/resources/static/assets/js/`:
+
+| Arquivo | Papel |
+|---------|-------|
+| `app.js` | Menu, rotas por hash, tema e indicador de conexão com a API |
+| `api.js` | Único ponto que chama a API (parâmetros de consulta, erros padronizados) |
+| `ui.js` | Componentes: janelas, formulário, confirmação, tabela, avisos e estados de carregando, vazio e erro |
+| `formatos.js` | Números, moeda e datas no padrão brasileiro |
+| `grafico.js` | Gráfico de barras em SVG |
+| `views/painel.js`, `views/estoque.js`, `views/explorador.js` | Telas |
+| `views/cadastros.js` | Tela genérica de cadastros e a descrição de cada recurso (campos, colunas, tipo de exclusão) |
+
+Para colocar um cadastro novo na interface, acrescente a descrição dele em `RECURSOS` e o id em `GRUPOS_CADASTRO`, no `views/cadastros.js`.
+
+---
+
+## 11. Imagem Docker da aplicação
 
 O `Dockerfile` fica na **raiz** do projeto e é **multi-stage**:
 
@@ -398,7 +531,7 @@ docker build --build-arg RUN_TESTS=true -t controle-estoque .
 
 ### Rodar a imagem
 
-Com o compose no ar, conecte o container na mesma rede do banco:
+O compose já gera e roda essa imagem (serviço `app`, seção 7). Para rodá-la manualmente, com o banco do compose no ar, conecte o container na mesma rede do banco:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -413,7 +546,7 @@ docker run --rm -p 8080:8080 \
 
 ---
 
-## 11. Documentação da API (Swagger)
+## 12. Documentação da API (Swagger)
 
 A documentação é gerada com o **springdoc-openapi** e fica disponível com a aplicação no ar:
 
@@ -424,21 +557,30 @@ A documentação é gerada com o **springdoc-openapi** e fica disponível com a 
 
 No Swagger UI é possível visualizar todos os endpoints, os modelos de request/response, os códigos HTTP e **testar as chamadas direto pelo navegador**.
 
-> Enquanto não houver controllers, o Swagger UI abre normalmente, mas mostra a mensagem "No operations defined in spec". Os endpoints aparecem automaticamente conforme os controllers forem criados.
+Todas as rotas estão documentadas (resumo, descrição e respostas possíveis, como 200, 201, 204, 400, 404 e 409), organizadas em grupos: Estados, Cidades, Bairros, Clientes, Fornecedores, Produtos, Fornecedores do Produto, Estoque, Categorias de Produto, Tipos de Produto, Unidades de Medida, Tipos de Cliente, Métodos de Pagamento e Tipos de Movimentação de Estoque. Veja o formato dos cadastros e as listas suspensas em [Padrão de CRUD](#padrão-de-crud).
 
 ### Configuração
 
-Os caminhos ficam no `application.yaml`:
+Os caminhos e o comportamento do Swagger ficam no `application.yaml`:
 
 ```yaml
 springdoc:
+  cache:
+    disabled: true            # recarrega as listas suspensas a cada carga da documentação
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+    try-it-out-enabled: true          # abre já pronto para testar
+    doc-expansion: none               # grupos recolhidos
+    default-models-expand-depth: -1   # esconde a seção de schemas
+    filter: true                      # campo de busca
+    display-request-duration: true
 ```
+
+As listas suspensas são montadas pela classe `ListasSuspensasSwaggerConfig` (pacote `config`), que consulta o banco; a leitura da opção escolhida (`3 - Pães` → `3`) está em `OpcaoSelecionada` (pacote `service`).
 
 O título, a descrição e a versão exibidos no topo do Swagger UI ficam na classe `OpenApiConfig`, no pacote `config`:
 
@@ -459,27 +601,28 @@ public class OpenApiConfig {
 
 ### Como os endpoints são documentados
 
-A documentação é gerada automaticamente a partir dos controllers e DTOs. Para enriquecer, use as anotações do `io.swagger.v3.oas.annotations`:
+Cada controller usa as anotações do `io.swagger.v3.oas.annotations`. Ao criar um recurso novo, siga o mesmo padrão dos existentes (por exemplo, `MetodoPagamentoController`):
 
 ```java
-@Tag(name = "Clientes", description = "CRUD de clientes")
+@Tag(name = "Clientes", description = "Cadastro de clientes da padaria...")
 @RestController
-@RequestMapping("/clientes")
+@RequestMapping("/api/clientes")
 public class ClienteController {
 
-    @Operation(summary = "Busca um cliente pelo id")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-        @ApiResponse(responseCode = "404", description = "Cliente não encontrado")
-    })
     @GetMapping("/{id}")
-    public ClienteResponse buscar(@PathVariable Long id) {
+    @Operation(summary = "Buscar cliente por id", description = "Retorna os dados de um cliente a partir do seu id.")
+    @ApiResponse(responseCode = "200", description = "Cliente encontrado")
+    @ApiResponse(responseCode = "404", description = "O cliente não existe ou está inativo",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
+    public ClienteResponse buscar(@Parameter(description = "Escolha na lista (cliente)") @PathVariable String id) {
         // ...
     }
 }
 ```
 
-Os DTOs com Bean Validation (`@NotBlank`, `@Size`, etc.) já têm essas restrições refletidas no schema automaticamente.
+Sem `@Tag`, o grupo aparece como `cliente-controller`; por isso todo controller deve declarar o seu. Nos requests de `POST`/`PUT`, use `@ParameterObject` (em vez de `@RequestBody`) e descreva cada campo com `@Schema(description = ...)` nos `record`s. As restrições do Bean Validation (`@NotBlank`, `@Size`, etc.) aparecem no Swagger automaticamente, e os campos obrigatórios vêm marcados.
+
+Para um campo novo que aponte para outro cadastro, registre-o em `ListasSuspensasSwaggerConfig` para que ele vire lista suspensa.
 
 > Os endpoints do Actuator não aparecem no Swagger por padrão. Para exibi-los, use `springdoc.show-actuator: true`.
 >
@@ -487,7 +630,7 @@ Os DTOs com Bean Validation (`@NotBlank`, `@Size`, etc.) já têm essas restriç
 
 ---
 
-## 12. Health check (Actuator)
+## 13. Health check (Actuator)
 
 O **Spring Boot Actuator** expõe endpoints para monitorar a aplicação:
 
@@ -528,7 +671,7 @@ Só `health` e `info` estão expostos. O `show-details: always` mostra o status 
 
 ---
 
-## 13. Banco de dados e migrations (Flyway)
+## 14. Banco de dados e migrations (Flyway)
 
 As migrations ficam em `src/main/resources/db/migration/` e rodam automaticamente ao iniciar a aplicação.
 
@@ -538,12 +681,13 @@ As migrations ficam em `src/main/resources/db/migration/` e rodam automaticament
 V<versão>__<descricao_em_snake_case>.sql
 ```
 
-Exemplos:
+Migrations atuais:
 
 ```
-V1__baseline.sql
-V2__criar_tabelas_de_localizacao.sql
-V3__criar_tabelas_de_cadastro.sql
+V1__baseline.sql           # tabelas de apoio (estado, tipos, categorias, unidades, métodos de pagamento...)
+V2__baseline.sql           # cidade, cliente, fornecedor e produto
+V3__ativo_e_estados.sql    # coluna "ativo" (exclusão lógica), documentos únicos entre ativos e carga dos 27 estados
+V4__bairro_produto_fornecedor_estoque.sql  # bairro, produto x fornecedor, lote, movimentação, saldo decimal e tipos de movimentação básicos
 ```
 
 ### Regras
@@ -564,7 +708,7 @@ SELECT * FROM flyway_schema_history;
 
 ---
 
-## 14. CI (GitHub Actions)
+## 15. CI (GitHub Actions)
 
 A pipeline fica em `.github/workflows/ci.yml` e tem **gatilho manual**: nada roda sozinho em push ou Pull Request.
 
@@ -638,7 +782,7 @@ jobs:
 
 ---
 
-## 15. Comandos úteis do Docker
+## 16. Comandos úteis do Docker
 
 ```bash
 # Ver logs do PostgreSQL
@@ -662,7 +806,7 @@ docker network ls
 
 ---
 
-## 16. Problemas comuns
+## 17. Problemas comuns
 
 **A aplicação não conecta no banco**
 - Confirme se o container está rodando e saudável: `docker compose -f docker/docker-compose.yml ps`.
@@ -716,7 +860,7 @@ docker network ls
 
 ---
 
-## 17. Roadmap
+## 18. Roadmap
 
 Acompanhado no board do Jira (projeto **CE**). Ordem sugerida:
 
@@ -727,15 +871,16 @@ Acompanhado no board do Jira (projeto **CE**). Ordem sugerida:
 5. **Migrations iniciais** com todas as tabelas, PKs, FKs, constraints e índices
 6. **Entities JPA e Repositories**
 7. **DTOs, validações e mapeamento** da API
-8. **Services** e regras de negócio (cadastros, estoque e vendas)
-9. **Controllers REST** e tratamento global de exceções
-10. **CRUDs** de todos os cadastros, pedidos, lotes e movimentações
-11. **Documentação da API** com OpenAPI/Swagger *(dependência, configuração e `OpenApiConfig` entregues; as anotações nos controllers ficam para a implementação dos endpoints)*
-12. **Testes automatizados** (unitários e de integração)
+8. **Tratamento global de exceções** e **CRUDs dos cadastros** (auxiliares, clientes, fornecedores e produtos) *(entregue)*
+9. **Estoque**: entradas, lotes e movimentações, com saldo por lote e baixa FEFO *(entregue)*
+10. **Vendas**: pedidos, itens e pagamentos
+11. **Bairros** e demais cadastros pendentes *(entregue: Bairros e Produto x Fornecedor com custo unitário)*
+12. **Documentação da API** com OpenAPI/Swagger *(entregue para as rotas existentes: todas documentadas, com listas suspensas; as novas rotas devem seguir o mesmo padrão)*
+13. **Interface web** de administração ligada a todas as rotas *(entregue)*
 
 ---
 
-## 18. Convenções
+## 19. Convenções
 
 - **Pacotes:** `br.com.controleestoque.<camada>`.
 - **Tabelas e colunas:** `snake_case`, em português, seguindo o modelo do projeto (ex.: `id_cliente`, `data_pedido`, `valor_total`).

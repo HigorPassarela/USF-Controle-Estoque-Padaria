@@ -1,0 +1,11 @@
+# O build da imagem só usa o pom.xml e o src/; o resto não precisa ir para o Docker
+target/
+.git/
+.idea/
+.claude/
+openspec/
+docs/
+docker/
+github/
+*.md
+.env

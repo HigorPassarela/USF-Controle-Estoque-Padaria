@@ -34,12 +34,19 @@ management:
       show-details: always
 
 springdoc:
+  cache:
+    disabled: true
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+    try-it-out-enabled: true
+    doc-expansion: none
+    default-models-expand-depth: -1
+    filter: true
+    display-request-duration: true
 
 server:
   port: 8080
