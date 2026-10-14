@@ -11,10 +11,10 @@ import java.util.Optional;
 @Repository
 public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
 
-    @EntityGraph(attributePaths = {"tipoCliente", "cidade"})
+    @EntityGraph(attributePaths = {"tipoCliente", "cidade", "bairro"})
     List<Cliente> findAllByAtivoTrue();
 
-    @EntityGraph(attributePaths = {"tipoCliente", "cidade"})
+    @EntityGraph(attributePaths = {"tipoCliente", "cidade", "bairro"})
     Optional<Cliente> findByIdClienteAndAtivoTrue(Integer idCliente);
 
     boolean existsByCpfCnpjAndAtivoTrue(String cpfCnpj);
@@ -24,4 +24,6 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     boolean existsByTipoCliente_IdTipoCliente(Integer idTipoCliente);
 
     boolean existsByCidade_IdCidade(Integer idCidade);
+
+    boolean existsByBairro_IdBairro(Integer idBairro);
 }

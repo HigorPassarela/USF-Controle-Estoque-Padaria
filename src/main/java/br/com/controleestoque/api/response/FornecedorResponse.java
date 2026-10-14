@@ -8,7 +8,10 @@ public record FornecedorResponse(
         String cnpj,
         String telefone,
         String email,
-        String nomeCidade
+        Integer idCidade,
+        String nomeCidade,
+        Integer idBairro,
+        String nomeBairro
 ) {
     public static FornecedorResponse fromEntity(Fornecedor fornecedor) {
         return new FornecedorResponse(
@@ -17,7 +20,10 @@ public record FornecedorResponse(
                 fornecedor.getCnpj(),
                 fornecedor.getTelefone(),
                 fornecedor.getEmail(),
-                fornecedor.getCidade() != null ? fornecedor.getCidade().getNome() : null
+                fornecedor.getCidade() != null ? fornecedor.getCidade().getIdCidade() : null,
+                fornecedor.getCidade() != null ? fornecedor.getCidade().getNome() : null,
+                fornecedor.getBairro() != null ? fornecedor.getBairro().getIdBairro() : null,
+                fornecedor.getBairro() != null ? fornecedor.getBairro().getNome() : null
         );
     }
 }

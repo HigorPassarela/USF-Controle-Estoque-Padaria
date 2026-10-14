@@ -11,10 +11,10 @@ import java.util.Optional;
 @Repository
 public interface FornecedorRepository extends JpaRepository<Fornecedor, Integer> {
 
-    @EntityGraph(attributePaths = {"cidade"})
+    @EntityGraph(attributePaths = {"cidade", "bairro"})
     List<Fornecedor> findAllByAtivoTrue();
 
-    @EntityGraph(attributePaths = {"cidade"})
+    @EntityGraph(attributePaths = {"cidade", "bairro"})
     Optional<Fornecedor> findByIdFornecedorAndAtivoTrue(Integer idFornecedor);
 
     boolean existsByCnpjAndAtivoTrue(String cnpj);
@@ -22,4 +22,6 @@ public interface FornecedorRepository extends JpaRepository<Fornecedor, Integer>
     boolean existsByCnpjAndAtivoTrueAndIdFornecedorNot(String cnpj, Integer idFornecedor);
 
     boolean existsByCidade_IdCidade(Integer idCidade);
+
+    boolean existsByBairro_IdBairro(Integer idBairro);
 }

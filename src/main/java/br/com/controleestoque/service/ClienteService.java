@@ -4,6 +4,7 @@ import br.com.controleestoque.api.request.ClienteRequest;
 import br.com.controleestoque.api.response.ClienteResponse;
 import br.com.controleestoque.exception.RecursoNaoEncontradoException;
 import br.com.controleestoque.exception.RegraNegocioException;
+import br.com.controleestoque.model.Cidade;
 import br.com.controleestoque.model.Cliente;
 import br.com.controleestoque.repository.CidadeRepository;
 import br.com.controleestoque.repository.ClienteRepository;
@@ -21,6 +22,7 @@ public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final TipoClienteRepository tipoClienteRepository;
     private final CidadeRepository cidadeRepository;
+    private final BairroService bairroService;
 
     @Transactional(readOnly = true)
     public List<ClienteResponse> listarTodos() {
@@ -77,8 +79,10 @@ public class ClienteService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Tipo de Cliente não encontrado")));
 
         Integer idCidade = OpcaoSelecionada.idOuNulo(request.cidade(), "cidade");
-        cliente.setCidade(idCidade == null ? null
+        Cidade cidade = idCidade == null ? null
                 : cidadeRepository.findById(idCidade)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cidade não encontrada")));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cidade não encontrada"));
+        cliente.setCidade(cidade);
+        cliente.setBairro(bairroService.bairroDoEndereco(request.bairro(), cidade));
     }
 }

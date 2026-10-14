@@ -28,8 +28,8 @@ public class Produto {
     @Column(name = "preco_venda", nullable = false, precision = 10, scale = 2)
     private BigDecimal precoVenda;
 
-    @Column(name = "quantidade_estoque", nullable = false)
-    private Integer quantidadeEstoque = 0; // Valor default inicial
+    @Column(name = "quantidade_estoque", nullable = false, precision = 10, scale = 3)
+    private BigDecimal quantidadeEstoque = BigDecimal.ZERO; // Soma dos saldos dos lotes
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_categoria_produto", nullable = false)

@@ -36,6 +36,10 @@ public class Fornecedor {
     @JoinColumn(name = "id_cidade")
     private Cidade cidade;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_bairro")
+    private Bairro bairro;
+
     @Column(nullable = false)
     private Boolean ativo = true;
 }

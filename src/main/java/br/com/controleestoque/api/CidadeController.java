@@ -83,7 +83,7 @@ public class CidadeController {
     @ApiResponse(responseCode = "204", description = "Cidade excluído")
     @ApiResponse(responseCode = "404", description = "O cidade não existe",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
-    @ApiResponse(responseCode = "409", description = "Não é possível excluir: a cidade está em uso por algum cliente ou fornecedor",
+    @ApiResponse(responseCode = "409", description = "Não é possível excluir: a cidade está em uso por algum bairro, cliente ou fornecedor",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     public void excluir(@Parameter(description = "Escolha na lista (cidade)") @PathVariable String id) {
         service.excluir(OpcaoSelecionada.id(id, "id"));

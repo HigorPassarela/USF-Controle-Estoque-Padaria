@@ -35,7 +35,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ValorInvalidoException.class)
     public ResponseEntity<ErroResponse> valorInvalido(ValorInvalidoException ex, HttpServletRequest request) {
-        return resposta(HttpStatus.BAD_REQUEST, "Requisição inválida", ex.getMessage(), request);
+        if (ex.getCampo() == null) {
+            return resposta(HttpStatus.BAD_REQUEST, "Requisição inválida", ex.getMessage(), request);
+        }
+        ErroResponse corpo = new ErroResponse(HttpStatus.BAD_REQUEST.value(), "Requisição inválida",
+                ex.getMessage(), request.getRequestURI(), Instant.now(),
+                List.of(new ErroResponse.CampoInvalido(ex.getCampo(), ex.getMessage())));
+        return ResponseEntity.badRequest().body(corpo);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

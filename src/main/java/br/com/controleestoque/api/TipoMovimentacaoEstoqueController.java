@@ -69,6 +69,8 @@ public class TipoMovimentacaoEstoqueController {
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     @ApiResponse(responseCode = "404", description = "O tipo de movimentação de estoque não existe",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Conflito: o tipo já tem movimentações e não pode trocar de natureza (a descrição continua editável)",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     public TipoMovimentacaoEstoqueResponse atualizar(@Parameter(description = "Escolha na lista (tipo de movimentação de estoque)") @PathVariable String id,
                                   @Valid @ParameterObject TipoMovimentacaoEstoqueRequest request) {
         return service.atualizar(OpcaoSelecionada.id(id, "id"), request);

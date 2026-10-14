@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -41,7 +42,7 @@ public class ProdutoService {
     @Transactional
     public ProdutoResponse criar(ProdutoRequest request) {
         Produto produto = new Produto();
-        produto.setQuantidadeEstoque(0);
+        produto.setQuantidadeEstoque(BigDecimal.ZERO);
         preencher(produto, request);
         return ProdutoResponse.fromEntity(produtoRepository.save(produto));
     }

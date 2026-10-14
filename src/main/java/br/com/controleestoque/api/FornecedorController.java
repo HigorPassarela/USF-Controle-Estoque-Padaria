@@ -52,9 +52,9 @@ public class FornecedorController {
     @Operation(summary = "Cadastrar fornecedor",
             description = "Cria um novo fornecedor: preencha os campos abaixo (os marcados com * são obrigatórios) e clique em Execute. Devolve o registro criado com o seu id. O registro nasce ativo.")
     @ApiResponse(responseCode = "201", description = "Fornecedor criado; o cabeçalho Location aponta para o novo recurso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome e CNPJ são obrigatórios; o e-mail, se informado, deve ter formato válido",
+    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome e CNPJ são obrigatórios; o e-mail, se informado, deve ter formato válido; o bairro, se informado, exige a cidade e precisa pertencer a ela",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Referência inexistente: a cidade informada não existe",
+    @ApiResponse(responseCode = "404", description = "Referência inexistente: a cidade ou o bairro informados não existem",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     @ApiResponse(responseCode = "409", description = "Conflito: já existe um fornecedor ativo com o mesmo CNPJ",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
@@ -69,9 +69,9 @@ public class FornecedorController {
     @Operation(summary = "Atualizar fornecedor",
             description = "Altera o fornecedor: informe o id e preencha os campos abaixo (os marcados com * são obrigatórios). Os dados atuais são substituídos pelos informados; campos opcionais deixados em branco são apagados.")
     @ApiResponse(responseCode = "200", description = "Fornecedor atualizado")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome e CNPJ são obrigatórios; o e-mail, se informado, deve ter formato válido",
+    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome e CNPJ são obrigatórios; o e-mail, se informado, deve ter formato válido; o bairro, se informado, exige a cidade e precisa pertencer a ela",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
-    @ApiResponse(responseCode = "404", description = "O fornecedor não existe ou está inativo, ou referência inexistente (a cidade informada não existe)",
+    @ApiResponse(responseCode = "404", description = "O fornecedor não existe ou está inativo, ou referência inexistente (a cidade ou o bairro informados não existem)",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     @ApiResponse(responseCode = "409", description = "Conflito: já existe um fornecedor ativo com o mesmo CNPJ (em outro registro)",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))

@@ -52,9 +52,9 @@ public class ClienteController {
     @Operation(summary = "Cadastrar cliente",
             description = "Cria um novo cliente: preencha os campos abaixo (os marcados com * são obrigatórios) e clique em Execute. Devolve o registro criado com o seu id. O registro nasce ativo.")
     @ApiResponse(responseCode = "201", description = "Cliente criado; o cabeçalho Location aponta para o novo recurso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome, CPF/CNPJ e tipo de cliente são obrigatórios; o e-mail, se informado, deve ter formato válido",
+    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome, CPF/CNPJ e tipo de cliente são obrigatórios; o e-mail, se informado, deve ter formato válido; o bairro, se informado, exige a cidade e precisa pertencer a ela",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Referência inexistente: o tipo de cliente ou a cidade informados não existem",
+    @ApiResponse(responseCode = "404", description = "Referência inexistente: o tipo de cliente, a cidade ou o bairro informados não existem",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     @ApiResponse(responseCode = "409", description = "Conflito: já existe um cliente ativo com o mesmo CPF/CNPJ",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
@@ -69,9 +69,9 @@ public class ClienteController {
     @Operation(summary = "Atualizar cliente",
             description = "Altera o cliente: informe o id e preencha os campos abaixo (os marcados com * são obrigatórios). Os dados atuais são substituídos pelos informados; campos opcionais deixados em branco são apagados.")
     @ApiResponse(responseCode = "200", description = "Cliente atualizado")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome, CPF/CNPJ e tipo de cliente são obrigatórios; o e-mail, se informado, deve ter formato válido",
+    @ApiResponse(responseCode = "400", description = "Dados inválidos: nome, CPF/CNPJ e tipo de cliente são obrigatórios; o e-mail, se informado, deve ter formato válido; o bairro, se informado, exige a cidade e precisa pertencer a ela",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
-    @ApiResponse(responseCode = "404", description = "O cliente não existe ou está inativo, ou referência inexistente (o tipo de cliente ou a cidade informados não existem)",
+    @ApiResponse(responseCode = "404", description = "O cliente não existe ou está inativo, ou referência inexistente (o tipo de cliente, a cidade ou o bairro informados não existem)",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))
     @ApiResponse(responseCode = "409", description = "Conflito: já existe um cliente ativo com o mesmo CPF/CNPJ (em outro registro)",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroResponse.class)))

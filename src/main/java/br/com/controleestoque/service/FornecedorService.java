@@ -4,6 +4,7 @@ import br.com.controleestoque.api.request.FornecedorRequest;
 import br.com.controleestoque.api.response.FornecedorResponse;
 import br.com.controleestoque.exception.RecursoNaoEncontradoException;
 import br.com.controleestoque.exception.RegraNegocioException;
+import br.com.controleestoque.model.Cidade;
 import br.com.controleestoque.model.Fornecedor;
 import br.com.controleestoque.repository.CidadeRepository;
 import br.com.controleestoque.repository.FornecedorRepository;
@@ -19,6 +20,7 @@ public class FornecedorService {
 
     private final FornecedorRepository fornecedorRepository;
     private final CidadeRepository cidadeRepository;
+    private final BairroService bairroService;
 
     @Transactional(readOnly = true)
     public List<FornecedorResponse> listarTodos() {
@@ -72,8 +74,10 @@ public class FornecedorService {
         fornecedor.setEmail(request.email());
 
         Integer idCidade = OpcaoSelecionada.idOuNulo(request.cidade(), "cidade");
-        fornecedor.setCidade(idCidade == null ? null
+        Cidade cidade = idCidade == null ? null
                 : cidadeRepository.findById(idCidade)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cidade não encontrada")));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cidade não encontrada"));
+        fornecedor.setCidade(cidade);
+        fornecedor.setBairro(bairroService.bairroDoEndereco(request.bairro(), cidade));
     }
 }

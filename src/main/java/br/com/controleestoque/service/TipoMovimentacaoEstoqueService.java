@@ -3,7 +3,9 @@ package br.com.controleestoque.service;
 import br.com.controleestoque.api.request.TipoMovimentacaoEstoqueRequest;
 import br.com.controleestoque.api.response.TipoMovimentacaoEstoqueResponse;
 import br.com.controleestoque.exception.RecursoNaoEncontradoException;
+import br.com.controleestoque.exception.RegraNegocioException;
 import br.com.controleestoque.model.TipoMovimentacaoEstoque;
+import br.com.controleestoque.repository.MovimentacaoEstoqueRepository;
 import br.com.controleestoque.repository.TipoMovimentacaoEstoqueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import java.util.List;
 public class TipoMovimentacaoEstoqueService {
 
     private final TipoMovimentacaoEstoqueRepository repository;
+    private final MovimentacaoEstoqueRepository movimentacaoRepository;
 
     @Transactional(readOnly = true)
     public List<TipoMovimentacaoEstoqueResponse> listarTodos() {
@@ -38,6 +41,10 @@ public class TipoMovimentacaoEstoqueService {
     @Transactional
     public TipoMovimentacaoEstoqueResponse atualizar(Integer id, TipoMovimentacaoEstoqueRequest request) {
         TipoMovimentacaoEstoque e = buscarEntidade(id);
+        // Trocar a natureza de um tipo já usado reescreveria o sentido das movimentações antigas.
+        if (!e.getTipo().equals(request.tipo()) && movimentacaoRepository.existsByTipoMovimentacao_IdTipoMovimentacao(id)) {
+            throw new RegraNegocioException("Tipo de movimentação já usado em movimentações não pode trocar de natureza (ENTRADA/SAIDA)");
+        }
         e.setDescricao(request.descricao());
         e.setTipo(request.tipo());
         return TipoMovimentacaoEstoqueResponse.fromEntity(repository.save(e));
@@ -46,8 +53,9 @@ public class TipoMovimentacaoEstoqueService {
     @Transactional
     public void excluir(Integer id) {
         TipoMovimentacaoEstoque e = buscarEntidade(id);
-        // Ainda não há tabela que referencie este cadastro; a verificação de "em uso" entra com a tabela
-        // que o referenciar. Até lá, o handler converte violação de FK em 409.
+        if (movimentacaoRepository.existsByTipoMovimentacao_IdTipoMovimentacao(id)) {
+            throw new RegraNegocioException("Tipo de movimentação está em uso por movimentações de estoque e não pode ser excluído");
+        }
         repository.delete(e);
         repository.flush();
     }

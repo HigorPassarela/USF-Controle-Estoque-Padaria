@@ -21,6 +21,9 @@ public record FornecedorRequest(
         String email,
 
         @Schema(description = "Escolha a cidade na lista (opcional)")
-        String cidade
+        String cidade,
+
+        @Schema(description = "Escolha o bairro na lista (opcional; precisa ser da cidade escolhida)")
+        String bairro
 ) {
 }

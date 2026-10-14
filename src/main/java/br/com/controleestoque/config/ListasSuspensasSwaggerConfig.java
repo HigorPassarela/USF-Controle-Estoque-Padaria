@@ -1,11 +1,15 @@
 package br.com.controleestoque.config;
 
 import br.com.controleestoque.model.Cidade;
+import br.com.controleestoque.model.Lote;
+import br.com.controleestoque.model.Bairro;
+import br.com.controleestoque.repository.BairroRepository;
 import br.com.controleestoque.repository.CategoriaProdutoRepository;
 import br.com.controleestoque.repository.CidadeRepository;
 import br.com.controleestoque.repository.ClienteRepository;
 import br.com.controleestoque.repository.EstadoRepository;
 import br.com.controleestoque.repository.FornecedorRepository;
+import br.com.controleestoque.repository.LoteRepository;
 import br.com.controleestoque.repository.MetodoPagamentoRepository;
 import br.com.controleestoque.repository.ProdutoRepository;
 import br.com.controleestoque.repository.TipoClienteRepository;
@@ -20,6 +24,8 @@ import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -49,9 +55,11 @@ public class ListasSuspensasSwaggerConfig {
     private final TipoMovimentacaoEstoqueRepository tipoMovimentacaoRepository;
     private final EstadoRepository estadoRepository;
     private final CidadeRepository cidadeRepository;
+    private final BairroRepository bairroRepository;
     private final ClienteRepository clienteRepository;
     private final FornecedorRepository fornecedorRepository;
     private final ProdutoRepository produtoRepository;
+    private final LoteRepository loteRepository;
 
     @Bean
     public OpenApiCustomizer listasSuspensas() {
@@ -62,23 +70,37 @@ public class ListasSuspensasSwaggerConfig {
                 Map.entry("categorias-produto", () -> opcoes(categoriaProdutoRepository.findAll(), c -> c.getIdCategoriaProduto(), c -> c.getDescricao())),
                 Map.entry("unidades-medida", () -> opcoes(unidadeMedidaRepository.findAll(), u -> u.getIdUnidadeMedida(), u -> u.getDescricao() + " (" + u.getSigla() + ")")),
                 Map.entry("tipos-cliente", () -> opcoes(tipoClienteRepository.findAll(), t -> t.getIdTipoCliente(), t -> t.getDescricao())),
-                Map.entry("tipos-movimentacao", () -> opcoes(tipoMovimentacaoRepository.findAll(), t -> t.getIdTipoMovimentacao(), t -> t.getDescricao())),
+                Map.entry("tipos-movimentacao", () -> opcoes(tipoMovimentacaoRepository.findAll(), t -> t.getIdTipoMovimentacao(), t -> t.getDescricao() + " (" + t.getTipo() + ")")),
+                Map.entry("tipos-movimentacao-entrada", () -> tiposMovimentacao("ENTRADA")),
+                Map.entry("tipos-movimentacao-saida", () -> tiposMovimentacao("SAIDA")),
                 Map.entry("estados", () -> opcoes(estadoRepository.findAll(), e -> e.getIdEstado(), e -> e.getNome() + " (" + e.getUf() + ")")),
                 Map.entry("cidades", this::cidades),
+                Map.entry("bairros", this::bairros),
                 Map.entry("clientes", () -> opcoes(clienteRepository.findAllByAtivoTrue(), c -> c.getIdCliente(), c -> c.getNome())),
                 Map.entry("fornecedores", () -> opcoes(fornecedorRepository.findAllByAtivoTrue(), f -> f.getIdFornecedor(), f -> f.getNome())),
-                Map.entry("produtos", () -> opcoes(produtoRepository.findAllByAtivoTrue(), p -> p.getIdProduto(), p -> p.getNome()))
+                Map.entry("produtos", () -> opcoes(produtoRepository.findAllByAtivoTrue(), p -> p.getIdProduto(), p -> p.getNome())),
+                Map.entry("lotes", this::lotes)
         );
 
-        // Campo de escolha nos formulários de cadastro -> registros que podem ser escolhidos
-        Map<String, String> campoParaRecurso = Map.of(
-                "tipoCliente", "tipos-cliente",
-                "cidade", "cidades",
-                "categoria", "categorias-produto",
-                "tipoProduto", "tipos-produto",
-                "unidadeMedida", "unidades-medida",
-                "fornecedor", "fornecedores",
-                "estado", "estados"
+        // Campo de escolha nos formulários (e filtros) -> registros que podem ser escolhidos
+        Map<String, String> campoParaRecurso = Map.ofEntries(
+                Map.entry("tipoCliente", "tipos-cliente"),
+                Map.entry("cidade", "cidades"),
+                Map.entry("bairro", "bairros"),
+                Map.entry("categoria", "categorias-produto"),
+                Map.entry("tipoProduto", "tipos-produto"),
+                Map.entry("unidadeMedida", "unidades-medida"),
+                Map.entry("fornecedor", "fornecedores"),
+                Map.entry("estado", "estados"),
+                Map.entry("produto", "produtos"),
+                Map.entry("lote", "lotes"),
+                Map.entry("tipoMovimentacao", "tipos-movimentacao")
+        );
+
+        // Parâmetros de caminho além do {id} -> registros existentes
+        Map<String, String> parametroDeCaminhoParaRecurso = Map.of(
+                "idFornecedor", "fornecedores",
+                "idProduto", "produtos"
         );
 
         return openApi -> {
@@ -107,6 +129,13 @@ public class ListasSuspensasSwaggerConfig {
                         String origem = null;
                         if ("path".equals(p.getIn()) && "id".equals(p.getName())) {
                             origem = recurso;
+                        } else if ("path".equals(p.getIn())) {
+                            origem = parametroDeCaminhoParaRecurso.get(p.getName());
+                        } else if ("query".equals(p.getIn()) && "tipoMovimentacao".equals(p.getName())) {
+                            // Entradas só aceitam tipos de ENTRADA; saídas, só de SAIDA
+                            origem = caminho.endsWith("/entradas") ? "tipos-movimentacao-entrada"
+                                    : caminho.endsWith("/saidas") ? "tipos-movimentacao-saida"
+                                    : "tipos-movimentacao";
                         } else if ("query".equals(p.getIn()) && campoParaRecurso.containsKey(p.getName())) {
                             origem = campoParaRecurso.get(p.getName());
                         }
@@ -123,14 +152,40 @@ public class ListasSuspensasSwaggerConfig {
     }
 
     private static String recursoDoCaminho(String caminho) {
-        // "/api/produtos/{id}" -> "produtos"
+        // Segmento imediatamente antes do {id}: "/api/produtos/{id}" -> "produtos",
+        // "/api/estoque/lotes/{id}/saidas" -> "lotes"
         String[] partes = caminho.split("/");
+        for (int i = 1; i < partes.length; i++) {
+            if ("{id}".equals(partes[i])) {
+                return partes[i - 1];
+            }
+        }
         return partes.length > 2 ? partes[2] : "";
+    }
+
+    private List<String> tiposMovimentacao(String natureza) {
+        return opcoes(tipoMovimentacaoRepository.findAll().stream().filter(t -> natureza.equals(t.getTipo())).toList(),
+                t -> t.getIdTipoMovimentacao(), t -> t.getDescricao());
+    }
+
+    private List<String> lotes() {
+        DateTimeFormatter data = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        List<Lote> comSaldo = loteRepository.findByQuantidadeAtualGreaterThan(BigDecimal.ZERO);
+        return opcoes(comSaldo, Lote::getIdLote, l -> l.getProduto().getNome()
+                + (l.getNumeroLote() != null ? " - lote " + l.getNumeroLote() : "")
+                + (l.getDataValidade() != null ? ", vence " + l.getDataValidade().format(data) : ", sem validade")
+                + ", saldo " + l.getQuantidadeAtual().stripTrailingZeros().toPlainString()
+                + " " + l.getProduto().getUnidadeMedida().getSigla());
     }
 
     private List<String> cidades() {
         List<Cidade> todas = cidadeRepository.findAll();
         return opcoes(todas, Cidade::getIdCidade, c -> c.getNome() + " (" + c.getEstado().getUf() + ")");
+    }
+
+    private List<String> bairros() {
+        List<Bairro> todos = bairroRepository.findAll();
+        return opcoes(todos, Bairro::getIdBairro, b -> b.getNome() + " (" + b.getCidade().getNome() + "/" + b.getCidade().getEstado().getUf() + ")");
     }
 
     private static <T> List<String> opcoes(List<T> registros, Function<T, Integer> id, Function<T, String> nome) {

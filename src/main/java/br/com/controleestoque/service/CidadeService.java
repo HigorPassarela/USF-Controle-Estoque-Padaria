@@ -5,6 +5,7 @@ import br.com.controleestoque.api.response.CidadeResponse;
 import br.com.controleestoque.exception.RecursoNaoEncontradoException;
 import br.com.controleestoque.exception.RegraNegocioException;
 import br.com.controleestoque.model.Cidade;
+import br.com.controleestoque.repository.BairroRepository;
 import br.com.controleestoque.repository.CidadeRepository;
 import br.com.controleestoque.repository.ClienteRepository;
 import br.com.controleestoque.repository.EstadoRepository;
@@ -23,6 +24,7 @@ public class CidadeService {
     private final EstadoRepository estadoRepository;
     private final ClienteRepository clienteRepository;
     private final FornecedorRepository fornecedorRepository;
+    private final BairroRepository bairroRepository;
 
     @Transactional(readOnly = true)
     public List<CidadeResponse> listarTodos() {
@@ -51,6 +53,9 @@ public class CidadeService {
     @Transactional
     public void excluir(Integer id) {
         Cidade cidade = buscarEntidade(id);
+        if (bairroRepository.existsByCidade_IdCidade(id)) {
+            throw new RegraNegocioException("Cidade tem bairros cadastrados e não pode ser excluída");
+        }
         if (clienteRepository.existsByCidade_IdCidade(id) || fornecedorRepository.existsByCidade_IdCidade(id)) {
             throw new RegraNegocioException("Cidade está em uso por clientes ou fornecedores e não pode ser excluída");
         }
